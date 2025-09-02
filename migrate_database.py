@@ -7,11 +7,12 @@ from sqlalchemy import create_engine, text
 from loguru import logger
 from config.settings import Config
 
+
 def migrate_database():
     """Add english_translation columns to existing tables"""
-    
+
     engine = create_engine(Config.DATABASE_URL)
-    
+
     migrations = [
         """
         ALTER TABLE reddit_posts 
@@ -20,11 +21,11 @@ def migrate_database():
         """
         ALTER TABLE reddit_comments 
         ADD COLUMN IF NOT EXISTS english_translation TEXT;
-        """
+        """,
     ]
-    
+
     logger.info("Starting database migration...")
-    
+
     with engine.connect() as conn:
         for i, migration in enumerate(migrations, 1):
             try:
@@ -37,6 +38,7 @@ def migrate_database():
                 raise
 
     logger.info("✅ All database migrations completed successfully!")
+
 
 if __name__ == "__main__":
     migrate_database()

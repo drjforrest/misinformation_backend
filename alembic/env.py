@@ -29,9 +29,11 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+
 def get_database_url():
     """Get database URL from environment or config"""
     return Config.DATABASE_URL or config.get_main_option("sqlalchemy.url")
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
@@ -46,13 +48,14 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    
+
     # Override sqlalchemy.url with our config
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_database_url()
-    
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -63,14 +66,12 @@ def run_migrations_online() -> None:
         # Enable pgvector extension before running migrations
         connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         connection.commit()
-        
-        context.configure(
-            connection=connection, 
-            target_metadata=target_metadata
-        )
+
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()
