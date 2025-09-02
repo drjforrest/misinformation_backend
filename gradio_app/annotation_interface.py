@@ -77,6 +77,40 @@ class AnnotationInterface:
         
         return self.posts_data[self.current_post_index]
     
+    def _format_language_info(self, post: Dict) -> str:
+        """Format language and translation status information"""
+        language = post.get('language', 'unknown')
+        language_display = f"**Language:** {language}"
+        
+        # Add language flag emoji if available
+        lang_flags = {
+            'en': '🇬🇧', 'es': '🇪🇸', 'fr': '🇫🇷', 'zh': '🇨🇳', 'zh-cn': '🇨🇳', 
+            'zh-tw': '🇹🇼', 'tl': '🇵🇭', 'pa': '🇮🇳'
+        }
+        if language in lang_flags:
+            language_display = f"**Language:** {lang_flags[language]} {language}"
+        
+        # Show translation status if available
+        if post.get('english_translation'):
+            backend = post.get('translation_backend', 'unknown')
+            confidence = post.get('translation_confidence', 0)
+            language_display += f" | **Translation:** ✅ ({backend}, {confidence:.2f})"
+        elif language not in ['en', 'unknown']:
+            language_display += f" | **Translation:** ⚠️ Not available"
+        
+        return language_display
+    
+    def _format_translation_display(self, post: Dict) -> str:
+        """Format translation content if available"""
+        if post.get('english_translation') and post.get('language') not in ['en', 'unknown']:
+            return f"""
+            **🌐 English Translation:**
+            {post['english_translation'][:1000]}{'...' if len(post['english_translation']) > 1000 else ''}
+            
+            *Translated using {post.get('translation_backend', 'unknown')} (confidence: {post.get('translation_confidence', 0):.2f})*
+            """
+        return ""
+    
     def get_public_health_context(self, post_text: str) -> str:
         """Generate relevant public health guideline context"""
         context_items = []
@@ -193,17 +227,22 @@ class AnnotationInterface:
             if "error" in post:
                 return post["error"], "", "", ""
             
-            # Format post display
+            # Format post display with language and translation indicators
+            language_info = self._format_language_info(post)
+            
             post_display = f"""
             **Subreddit:** r/{post['subreddit']}
             **Title:** {post['title']}
             **Author:** {post['author']}
             **Date:** {post['created_utc']}
             **Score:** {post['score']} | **Comments:** {post['num_comments']}
-            **Language:** {post['language']} | **Newcomer-related:** {post['is_newcomer_related']}
+            {language_info}
+            **Newcomer-related:** {post['is_newcomer_related']}
             
-            **Content:**
+            **Original Content:**
             {post['selftext'][:1000]}{'...' if len(post['selftext']) > 1000 else ''}
+            
+            {self._format_translation_display(post)}
             """
             
             # Show some comments for context

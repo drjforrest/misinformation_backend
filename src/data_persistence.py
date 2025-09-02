@@ -12,7 +12,7 @@ from loguru import logger
 import json
 
 from config.settings import Config
-from src.database_models_vector import (
+from src.database_models import (
     RedditPost, RedditComment, PostAnnotation, UserStats, 
     NetworkMetrics, Base
 )
@@ -87,8 +87,11 @@ class DataPersistenceManager:
                     # Remove comments from post_data for separate handling
                     comments_data = post_data.pop('comments', [])
                     
+                    # Remove any tracking fields (starting with underscore) that aren't database fields
+                    clean_post_data = {k: v for k, v in post_data.items() if not k.startswith('_')}
+                    
                     # Create post object
-                    post = RedditPost(**post_data)
+                    post = RedditPost(**clean_post_data)
                     session.add(post)
                     session.flush()  # Get the post ID
                     

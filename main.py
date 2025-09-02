@@ -54,6 +54,61 @@ def collect_data_to_database():
     
     return data
 
+def collect_multilingual_data():
+    """Run multilingual data collection from Reddit (file-based)"""
+    from src.multilingual_scraper import MultilingualRedditScraper
+    
+    logger.info("Starting multilingual Reddit data collection (file-based)...")
+    scraper = MultilingualRedditScraper(enable_database=False, enable_translation=True)
+    
+    # Collect data from all target subreddits with translation support
+    data = scraper.collect_all_data_multilingual(save_to_database=False)
+    
+    logger.info(f"Multilingual data collection complete: {len(data)} posts collected")
+    return data
+
+def collect_multilingual_data_to_database():
+    """Run multilingual data collection from Reddit with database persistence"""
+    from src.multilingual_scraper import MultilingualRedditScraper
+    from src.data_persistence import DataPersistenceManager
+    
+    logger.info("Starting multilingual Reddit data collection with database persistence...")
+    
+    # Get pre-collection stats
+    db_manager = DataPersistenceManager()
+    pre_stats = db_manager.get_collection_stats()
+    logger.info(f"Database contains {pre_stats.get('total_posts', 0)} posts before collection")
+    
+    # Run collection with database enabled and translation support
+    scraper = MultilingualRedditScraper(enable_database=True, enable_translation=True)
+    data = scraper.collect_all_data_multilingual(save_to_database=True)
+    
+    # Get post-collection stats
+    post_stats = db_manager.get_collection_stats()
+    
+    logger.info(f"Multilingual data collection complete: {len(data)} posts collected")
+    logger.info(f"Database now contains: {post_stats.get('total_posts', 0)} posts total")
+    
+    return data
+
+def translate_keywords():
+    """Generate multilingual health keyword translations"""
+    from src.translation_service import TranslationService
+    
+    logger.info("Generating multilingual health keyword translations...")
+    
+    service = TranslationService()
+    translations = service.translate_health_keywords()
+    
+    logger.info(f"✅ Keyword translations complete: {len(translations)} languages")
+    
+    # Show summary
+    for lang, keywords in translations.items():
+        logger.info(f"  {lang}: {len(keywords)} keywords translated")
+    
+    service.close()
+    return translations
+
 def analyze_network(data_path: str):
     """Run network analysis on collected data"""
     from src.network_analysis import MisinformationNetwork
@@ -95,13 +150,33 @@ def launch_enhanced_annotation_tool(data_path: str):
     annotation_tool = EnhancedAnnotationInterface(data_path)
     annotation_tool.launch(share=False)
 
+def create_visualizations(data_path: str, output_dir: str = "visualizations"):
+    """Generate comprehensive research visualizations"""
+    from src.research_visualizations import ResearchVisualizations
+    
+    logger.info(f"Creating research visualizations for {data_path}...")
+    
+    viz = ResearchVisualizations(data_path)
+    saved_files = viz.save_all_visualizations(output_dir)
+    
+    logger.info(f"Generated {len(saved_files)} visualizations in {output_dir}/")
+    
+    print(f"\n📊 Research Visualizations Generated:")
+    for name, path in saved_files.items():
+        print(f"   🎯 {name.title()}: {path}")
+    
+    print(f"\n🌟 Open these HTML files in your browser for interactive analysis!")
+    
+    return saved_files
+
 def main():
     """Main CLI interface"""
     parser = argparse.ArgumentParser(description='Health Misinformation Detection Platform')
     
     parser.add_argument(
         'command',
-        choices=['collect', 'collect-db', 'analyze', 'annotate', 'annotate-enhanced', 'demo'],
+        choices=['collect', 'collect-db', 'collect-multilingual', 'collect-multilingual-db', 
+                'translate-keywords', 'analyze', 'annotate', 'annotate-enhanced', 'visualize', 'demo'],
         help='Command to run'
     )
     
@@ -126,6 +201,15 @@ def main():
     elif args.command == 'collect-db':
         collect_data_to_database()
     
+    elif args.command == 'collect-multilingual':
+        collect_multilingual_data()
+    
+    elif args.command == 'collect-multilingual-db':
+        collect_multilingual_data_to_database()
+    
+    elif args.command == 'translate-keywords':
+        translate_keywords()
+    
     elif args.command == 'analyze':
         if not args.data_path:
             logger.error("--data-path required for analysis")
@@ -143,6 +227,12 @@ def main():
             logger.error("--data-path required for enhanced annotation")
             return
         launch_enhanced_annotation_tool(args.data_path)
+    
+    elif args.command == 'visualize':
+        if not args.data_path:
+            logger.error("--data-path required for visualization")
+            return
+        create_visualizations(args.data_path)
     
     elif args.command == 'demo':
         logger.info("Running demo workflow...")
@@ -186,10 +276,17 @@ def main():
             print(f"   • Languages detected: {list(languages.keys())}")
             print(f"   • Newcomer-related posts: {newcomer_count}")
             print(f"   • Data saved to: {demo_path}")
+            
+            # Auto-generate visualizations for demo
+            print(f"\n📊 Generating demo visualizations...")
+            create_visualizations(demo_path, "demo_visualizations")
+            
             print(f"\n💡 Next steps:")
+            print(f"   • View visualizations: Open demo_visualizations/*.html in browser")
             print(f"   • Basic annotation: python main.py annotate --data-path {demo_path}")
             print(f"   • Enhanced annotation: python main.py annotate-enhanced --data-path {demo_path}")
             print(f"   • Network analysis: python main.py analyze --data-path {demo_path}")
+            print(f"   • Generate more visualizations: python main.py visualize --data-path {demo_path}")
 
 if __name__ == "__main__":
     main()

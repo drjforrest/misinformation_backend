@@ -25,7 +25,9 @@ class RedditPost(Base):
     num_comments = Column(Integer)
     url = Column(Text)
     language = Column(String(10))
+    english_translation = Column(Text)  # Translation of title+selftext if non-English
     is_newcomer_related = Column(Boolean, default=False)
+    full_text = Column(Text)  # Combined title and selftext for analysis
     
     # Language community analysis enhancements
     non_official_language_indicators = Column(Text)  # JSON of detected patterns
@@ -50,6 +52,7 @@ class RedditComment(Base):
     score = Column(Integer)
     parent_id = Column(String(50))  # For tracking reply chains
     language = Column(String(10))
+    english_translation = Column(Text)  # Translation of comment body if non-English
     is_newcomer_related = Column(Boolean, default=False)
     
     # Relationships
