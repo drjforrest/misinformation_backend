@@ -12,11 +12,12 @@ from loguru import logger
 import time
 
 from config.settings import Config, ResearchConfig
+from src.data_persistence import DataPersistenceManager
 
 class RedditScraper:
     """Handles Reddit API interactions and data collection"""
     
-    def __init__(self):
+    def __init__(self, enable_database: bool = False):
         """Initialize Reddit API connection"""
         self.reddit = praw.Reddit(
             client_id=Config.REDDIT_CLIENT_ID,
@@ -33,7 +34,13 @@ class RedditScraper:
                                  ResearchConfig.CANADIAN_SUBREDDITS + 
                                  ResearchConfig.NEWCOMER_SUBREDDITS)
         
+        # Database integration
+        self.enable_database = enable_database
+        self.db_manager = DataPersistenceManager() if enable_database else None
+        
         logger.info(f"Initialized Reddit scraper targeting {len(self.target_subreddits)} subreddits")
+        if enable_database:
+            logger.info("Database persistence enabled - will check for duplicates")
     
     def contains_health_keywords(self, text: str) -> bool:
         """Check if text contains any of our target health keywords"""
@@ -60,13 +67,14 @@ class RedditScraper:
         text_lower = text.lower()
         return any(phrase.lower() in text_lower for phrase in ResearchConfig.NEWCOMER_PHRASES)
     
-    def scrape_subreddit(self, subreddit_name: str, limit: int = None) -> List[Dict]:
+    def scrape_subreddit(self, subreddit_name: str, limit: int = None, skip_existing: bool = True) -> List[Dict]:
         """
         Scrape posts from a specific subreddit
         
         Args:
             subreddit_name: Name of subreddit to scrape
             limit: Maximum number of posts to collect
+            skip_existing: Whether to skip posts already in database
         
         Returns:
             List of post dictionaries with metadata
@@ -76,12 +84,18 @@ class RedditScraper:
         
         subreddit = self.reddit.subreddit(subreddit_name)
         posts_data = []
+        skipped_existing = 0
         
         logger.info(f"Scraping r/{subreddit_name} for health-related posts...")
         
         try:
             # Get recent posts (last 30 days worth)
             for post in subreddit.new(limit=limit * 3):  # Over-sample to filter down
+                
+                # Skip if already exists in database (if database enabled)
+                if self.enable_database and skip_existing and self.db_manager.post_exists(post.id):
+                    skipped_existing += 1
+                    continue
                 
                 # Check if post contains health keywords
                 post_text = f"{post.title} {post.selftext}"
@@ -123,6 +137,8 @@ class RedditScraper:
                     break
             
             logger.info(f"Collected {len(posts_data)} relevant posts from r/{subreddit_name}")
+            if skipped_existing > 0:
+                logger.info(f"Skipped {skipped_existing} posts already in database")
             return posts_data
             
         except Exception as e:
@@ -157,20 +173,30 @@ class RedditScraper:
         
         return comments_data
     
-    def collect_all_data(self) -> pd.DataFrame:
+    def collect_all_data(self, save_to_database: bool = None) -> pd.DataFrame:
         """Collect data from all target subreddits"""
+        if save_to_database is None:
+            save_to_database = self.enable_database
+            
         all_posts = []
+        total_skipped = 0
         
         for subreddit in self.target_subreddits:
+            logger.info(f"Processing subreddit: r/{subreddit}")
             posts = self.scrape_subreddit(subreddit)
             all_posts.extend(posts)
+            
+            # Save to database immediately if enabled
+            if save_to_database and posts:
+                stats = self.db_manager.bulk_save_posts(posts)
+                logger.info(f"Database save stats for r/{subreddit}: {stats}")
             
             # Be respectful with API calls
             time.sleep(2)
         
         df = pd.DataFrame(all_posts)
         
-        # Save raw data
+        # Always save raw data as backup
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"data/raw_reddit_data_{timestamp}.json"
         
@@ -178,6 +204,12 @@ class RedditScraper:
             json.dump(all_posts, f, indent=2, default=str)
         
         logger.info(f"Collected {len(all_posts)} total posts, saved to {filename}")
+        
+        if save_to_database:
+            # Get final database stats
+            db_stats = self.db_manager.get_collection_stats()
+            logger.info(f"Database now contains: {db_stats.get('total_posts', 0)} posts, {db_stats.get('total_comments', 0)} comments")
+        
         return df
 
 if __name__ == "__main__":

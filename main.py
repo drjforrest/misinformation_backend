@@ -6,6 +6,7 @@ import argparse
 from datetime import datetime
 from loguru import logger
 import os
+import json
 
 # Setup logging
 os.makedirs('logs', exist_ok=True)
@@ -17,16 +18,40 @@ logger.add(
 )
 
 def collect_data():
-    """Run data collection from Reddit"""
+    """Run data collection from Reddit (file-based)"""
     from src.reddit_scraper import RedditScraper
     
-    logger.info("Starting Reddit data collection...")
+    logger.info("Starting Reddit data collection (file-based)...")
     scraper = RedditScraper()
     
     # Collect data from all target subreddits
     data = scraper.collect_all_data()
     
     logger.info(f"Data collection complete: {len(data)} posts collected")
+    return data
+
+def collect_data_to_database():
+    """Run data collection from Reddit with database persistence"""
+    from src.reddit_scraper import RedditScraper
+    from src.data_persistence import DataPersistenceManager
+    
+    logger.info("Starting Reddit data collection with database persistence...")
+    
+    # Get pre-collection stats
+    db_manager = DataPersistenceManager()
+    pre_stats = db_manager.get_collection_stats()
+    logger.info(f"Database contains {pre_stats.get('total_posts', 0)} posts before collection")
+    
+    # Run collection with database enabled
+    scraper = RedditScraper(enable_database=True)
+    data = scraper.collect_all_data(save_to_database=True)
+    
+    # Get post-collection stats
+    post_stats = db_manager.get_collection_stats()
+    
+    logger.info(f"Data collection complete: {len(data)} posts collected")
+    logger.info(f"Database now contains: {post_stats.get('total_posts', 0)} posts total")
+    
     return data
 
 def analyze_network(data_path: str):
@@ -61,13 +86,22 @@ def launch_annotation_tool(data_path: str):
     annotation_tool = AnnotationInterface(data_path)
     annotation_tool.launch(share=False)
 
+def launch_enhanced_annotation_tool(data_path: str):
+    """Launch the enhanced Gradio annotation interface with full schema support"""
+    from gradio_app.enhanced_annotation_interface import EnhancedAnnotationInterface
+    
+    logger.info("Launching enhanced annotation interface...")
+    
+    annotation_tool = EnhancedAnnotationInterface(data_path)
+    annotation_tool.launch(share=False)
+
 def main():
     """Main CLI interface"""
     parser = argparse.ArgumentParser(description='Health Misinformation Detection Platform')
     
     parser.add_argument(
         'command',
-        choices=['collect', 'analyze', 'annotate', 'demo'],
+        choices=['collect', 'collect-db', 'analyze', 'annotate', 'annotate-enhanced', 'demo'],
         help='Command to run'
     )
     
@@ -89,6 +123,9 @@ def main():
     if args.command == 'collect':
         collect_data()
     
+    elif args.command == 'collect-db':
+        collect_data_to_database()
+    
     elif args.command == 'analyze':
         if not args.data_path:
             logger.error("--data-path required for analysis")
@@ -100,6 +137,12 @@ def main():
             logger.error("--data-path required for annotation")
             return
         launch_annotation_tool(args.data_path)
+    
+    elif args.command == 'annotate-enhanced':
+        if not args.data_path:
+            logger.error("--data-path required for enhanced annotation")
+            return
+        launch_enhanced_annotation_tool(args.data_path)
     
     elif args.command == 'demo':
         logger.info("Running demo workflow...")
@@ -144,8 +187,9 @@ def main():
             print(f"   • Newcomer-related posts: {newcomer_count}")
             print(f"   • Data saved to: {demo_path}")
             print(f"\n💡 Next steps:")
-            print(f"   • Run: python main.py annotate --data-path {demo_path}")
-            print(f"   • Or: python main.py analyze --data-path {demo_path}")
+            print(f"   • Basic annotation: python main.py annotate --data-path {demo_path}")
+            print(f"   • Enhanced annotation: python main.py annotate-enhanced --data-path {demo_path}")
+            print(f"   • Network analysis: python main.py analyze --data-path {demo_path}")
 
 if __name__ == "__main__":
     main()

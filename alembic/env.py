@@ -5,6 +5,7 @@ Alembic environment configuration with pgvector support
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import text
 from alembic import context
 import os
 import sys
@@ -60,7 +61,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         # Enable pgvector extension before running migrations
-        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         connection.commit()
         
         context.configure(
