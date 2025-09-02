@@ -8,7 +8,6 @@ from typing import List, Dict, Optional
 import json
 from datetime import datetime
 import plotly.graph_objects as go
-import numpy as np
 from loguru import logger
 from src.data_persistence import DataPersistenceManager
 from src.database_models import RedditPost, RedditComment
@@ -61,71 +60,77 @@ class MisinformationNetwork:
 
 class NetworkAnalyzer:
     """Enhanced network analyzer for research-grade analysis"""
-    
+
     def __init__(self):
         self.db_manager = DataPersistenceManager()
         self.graph = nx.DiGraph()
-        
+
     def build_user_network(self, subreddit_filter: Optional[str] = None) -> Dict:
         """Build user interaction network from database"""
         with self.db_manager.get_session() as session:
             # Load posts and comments
             posts_query = session.query(RedditPost)
             if subreddit_filter:
-                posts_query = posts_query.filter(RedditPost.subreddit == subreddit_filter)
+                posts_query = posts_query.filter(
+                    RedditPost.subreddit == subreddit_filter
+                )
             posts = posts_query.all()
-            
+
             comments_query = session.query(RedditComment)
             if subreddit_filter:
                 # Join with posts to filter comments by subreddit
-                comments_query = comments_query.join(RedditPost, 
-                                                   RedditComment.post_id == RedditPost.post_id)\
-                                             .filter(RedditPost.subreddit == subreddit_filter)
+                comments_query = comments_query.join(
+                    RedditPost, RedditComment.post_id == RedditPost.post_id
+                ).filter(RedditPost.subreddit == subreddit_filter)
             comments = comments_query.all()
-            
+
             if not posts and not comments:
-                return {'nodes': [], 'edges': []}
-            
+                return {"nodes": [], "edges": []}
+
             # Build graph
             self.graph.clear()
-            
+
             # Add nodes for users
             users = set()
             post_authors = {post.post_id: post.author for post in posts if post.author}
-            
+
             for post in posts:
-                if post.author and post.author != '[deleted]':
+                if post.author and post.author != "[deleted]":
                     users.add(post.author)
-                    
+
             for comment in comments:
-                if comment.author and comment.author != '[deleted]':
+                if comment.author and comment.author != "[deleted]":
                     users.add(comment.author)
-            
+
             self.graph.add_nodes_from(users)
-            
+
             # Add edges for interactions
             for comment in comments:
-                if not comment.author or comment.author == '[deleted]':
+                if not comment.author or comment.author == "[deleted]":
                     continue
-                    
+
                 post_author = post_authors.get(comment.post_id)
-                if post_author and post_author != '[deleted]' and post_author != comment.author:
+                if (
+                    post_author
+                    and post_author != "[deleted]"
+                    and post_author != comment.author
+                ):
                     if self.graph.has_edge(comment.author, post_author):
-                        self.graph[comment.author][post_author]['weight'] += 1
+                        self.graph[comment.author][post_author]["weight"] += 1
                     else:
                         self.graph.add_edge(comment.author, post_author, weight=1)
-            
+
             # Convert to visualization format
             return self._graph_to_vis_data()
-    
+
     def _graph_to_vis_data(self) -> Dict:
         """Convert NetworkX graph to visualization data"""
         if not self.graph.nodes():
-            return {'nodes': [], 'edges': []}
-            
+            return {"nodes": [], "edges": []}
+
         # Calculate layout using spring algorithm
         pos = nx.spring_layout(self.graph, k=1, iterations=50)
-        
+
         # Calculate centrality measures
         try:
             centrality = nx.degree_centrality(self.graph)
@@ -133,85 +138,102 @@ class NetworkAnalyzer:
         except:
             centrality = {node: 0 for node in self.graph.nodes()}
             betweenness = {node: 0 for node in self.graph.nodes()}
-        
+
         # Create nodes data
         nodes = []
         for node in self.graph.nodes():
             x, y = pos[node]
             size = max(10, centrality.get(node, 0) * 100)
-            
-            nodes.append({
-                'id': node,
-                'x': float(x),
-                'y': float(y),
-                'size': float(size),
-                'centrality': float(centrality.get(node, 0)),
-                'betweenness': float(betweenness.get(node, 0))
-            })
-        
+
+            nodes.append(
+                {
+                    "id": node,
+                    "x": float(x),
+                    "y": float(y),
+                    "size": float(size),
+                    "centrality": float(centrality.get(node, 0)),
+                    "betweenness": float(betweenness.get(node, 0)),
+                }
+            )
+
         # Create edges data
         edges = []
         for edge in self.graph.edges(data=True):
             source, target, data = edge
             if source in pos and target in pos:
-                edges.append({
-                    'source': source,
-                    'target': target,
-                    'weight': data.get('weight', 1)
-                })
-        
-        return {'nodes': nodes, 'edges': edges}
-    
+                edges.append(
+                    {
+                        "source": source,
+                        "target": target,
+                        "weight": data.get("weight", 1),
+                    }
+                )
+
+        return {"nodes": nodes, "edges": edges}
+
     def visualize_network(self, network_data: Dict) -> go.Figure:
         """Create interactive network visualization"""
-        nodes = network_data.get('nodes', [])
-        edges = network_data.get('edges', [])
-        
+        nodes = network_data.get("nodes", [])
+        edges = network_data.get("edges", [])
+
         if not nodes:
             fig = go.Figure()
-            fig.add_annotation(text="No network data to visualize", 
-                             xref="paper", yref="paper", x=0.5, y=0.5)
+            fig.add_annotation(
+                text="No network data to visualize",
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+            )
             return fig
-        
+
         # Create edge traces
         edge_x = []
         edge_y = []
         edge_info = []
-        
+
         for edge in edges:
-            source_node = next((n for n in nodes if n['id'] == edge['source']), None)
-            target_node = next((n for n in nodes if n['id'] == edge['target']), None)
-            
+            source_node = next((n for n in nodes if n["id"] == edge["source"]), None)
+            target_node = next((n for n in nodes if n["id"] == edge["target"]), None)
+
             if source_node and target_node:
-                edge_x.extend([source_node['x'], target_node['x'], None])
-                edge_y.extend([source_node['y'], target_node['y'], None])
-                edge_info.append(f"{edge['source']} → {edge['target']} (weight: {edge['weight']})")
-        
-        edge_trace = go.Scatter(x=edge_x, y=edge_y,
-                               line=dict(width=0.5, color='#888'),
-                               hoverinfo='none',
-                               mode='lines')
-        
+                edge_x.extend([source_node["x"], target_node["x"], None])
+                edge_y.extend([source_node["y"], target_node["y"], None])
+                edge_info.append(
+                    f"{edge['source']} → {edge['target']} (weight: {edge['weight']})"
+                )
+
+        edge_trace = go.Scatter(
+            x=edge_x,
+            y=edge_y,
+            line=dict(width=0.5, color="#888"),
+            hoverinfo="none",
+            mode="lines",
+        )
+
         # Create node trace
-        node_x = [node['x'] for node in nodes]
-        node_y = [node['y'] for node in nodes]
-        node_text = [node['id'] for node in nodes]
-        node_sizes = [max(5, node['size']) for node in nodes]
-        
-        node_trace = go.Scatter(x=node_x, y=node_y,
-                               mode='markers+text',
-                               hoverinfo='text',
-                               text=node_text,
-                               textposition="middle center",
-                               marker=dict(
-                                   size=node_sizes,
-                                   color=[node['centrality'] for node in nodes],
-                                   colorscale='YlOrRd',
-                                   showscale=True,
-                                   colorbar=dict(title="Centrality"),
-                                   line=dict(width=2)
-                               ))
-        
+        node_x = [node["x"] for node in nodes]
+        node_y = [node["y"] for node in nodes]
+        node_text = [node["id"] for node in nodes]
+        node_sizes = [max(5, node["size"]) for node in nodes]
+
+        node_trace = go.Scatter(
+            x=node_x,
+            y=node_y,
+            mode="markers+text",
+            hoverinfo="text",
+            text=node_text,
+            textposition="middle center",
+            marker=dict(
+                size=node_sizes,
+                color=[node["centrality"] for node in nodes],
+                colorscale="YlOrRd",
+                showscale=True,
+                colorbar=dict(title="Centrality"),
+                line=dict(width=2),
+            ),
+        )
+
         # Hover text
         node_hover_text = []
         for node in nodes:
@@ -219,29 +241,36 @@ class NetworkAnalyzer:
             hover_text += f"Centrality: {node['centrality']:.3f}<br>"
             hover_text += f"Betweenness: {node['betweenness']:.3f}"
             node_hover_text.append(hover_text)
-        
+
         node_trace.hovertext = node_hover_text
-        
+
         # Create figure
-        fig = go.Figure(data=[edge_trace, node_trace],
-                       layout=go.Layout(
-                           title=f'User Interaction Network ({len(nodes)} users, {len(edges)} interactions)',
-                           titlefont_size=16,
-                           showlegend=False,
-                           hovermode='closest',
-                           margin=dict(b=20,l=5,r=5,t=40),
-                           annotations=[ dict(
-                               text="User network based on post-comment interactions",
-                               showarrow=False,
-                               xref="paper", yref="paper",
-                               x=0.005, y=-0.002,
-                               xanchor="left", yanchor="bottom",
-                               font=dict(color="#999", size=12)
-                           )],
-                           xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                           yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
-                       ))
-        
+        fig = go.Figure(
+            data=[edge_trace, node_trace],
+            layout=go.Layout(
+                title=f"User Interaction Network ({len(nodes)} users, {len(edges)} interactions)",
+                titlefont_size=16,
+                showlegend=False,
+                hovermode="closest",
+                margin=dict(b=20, l=5, r=5, t=40),
+                annotations=[
+                    dict(
+                        text="User network based on post-comment interactions",
+                        showarrow=False,
+                        xref="paper",
+                        yref="paper",
+                        x=0.005,
+                        y=-0.002,
+                        xanchor="left",
+                        yanchor="bottom",
+                        font=dict(color="#999", size=12),
+                    )
+                ],
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            ),
+        )
+
         return fig
 
     def build_interaction_network(self) -> None:

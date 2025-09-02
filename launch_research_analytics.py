@@ -13,8 +13,10 @@ from gradio_app.research_analytics_interface import launch_research_interface
 
 if __name__ == "__main__":
     print("🔬 Launching Health Misinformation Research Analytics Platform...")
-    print("📊 This interface provides comprehensive investigational tools for research teams")
+    print(
+        "📊 This interface provides comprehensive investigational tools for research teams"
+    )
     print("🌐 Access at: http://localhost:7861")
     print("")
-    
+
     launch_research_interface()

@@ -3,11 +3,14 @@ Main entry point for the Health Misinformation Detection Platform
 """
 
 import argparse
-from datetime import datetime
-from loguru import logger
-import os
 import json
+import os
+from datetime import datetime
 from typing import Dict, Optional
+
+from loguru import logger
+
+from src.network_analysis import NetworkAnalyzer
 
 # Setup logging
 os.makedirs("logs", exist_ok=True)
@@ -35,8 +38,8 @@ def collect_data():
 
 def collect_data_to_database():
     """Run data collection from Reddit with database persistence"""
-    from src.reddit_scraper import RedditScraper
     from src.data_persistence import DataPersistenceManager
+    from src.reddit_scraper import RedditScraper
 
     logger.info("Starting Reddit data collection with database persistence...")
 
@@ -78,8 +81,8 @@ def collect_multilingual_data():
 
 def collect_multilingual_data_to_database():
     """Run multilingual data collection from Reddit with database persistence"""
-    from src.multilingual_scraper import MultilingualRedditScraper
     from src.data_persistence import DataPersistenceManager
+    from src.multilingual_scraper import MultilingualRedditScraper
 
     logger.info(
         "Starting multilingual Reddit data collection with database persistence..."
@@ -126,28 +129,61 @@ def translate_keywords():
     return translations
 
 
-def analyze_network(data_path: str):
-    """Run network analysis on collected data"""
-    from src.network_analysis import MisinformationNetwork
+def analyze_network(data_path: str = None):
+    """Run community resilience network analysis"""
+    logger.info("Starting community resilience network analysis")
 
-    logger.info(f"Starting network analysis on {data_path}")
+    # Try database-based analysis first (preferred for community resilience)
+    try:
+        network_data = NetworkAnalyzer().build_user_network()
+        
+        if network_data and network_data.get('nodes'):
+            logger.info(f"Database analysis: Found {len(network_data['nodes'])} community members in support network")
+            
+            # Generate database-based network report
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_path = f"data/community_network_report_{timestamp}.json"
+            
+            with open(report_path, "w") as f:
+                json.dump(network_data, f, indent=2)
+            
+            logger.info(f"Community network analysis saved to {report_path}")
+            print(f"\n🤝 Community Support Network Analysis Complete!")
+            print(f"   • Network nodes (community members): {len(network_data['nodes'])}")
+            print(f"   • Network edges (supportive interactions): {len(network_data.get('edges', []))}")
+            print(f"   • Analysis saved to: {report_path}")
+            print(f"   • View network: python launch_community_resilience.py")
+            return network_data
+            
+    except Exception as e:
+        logger.warning(f"Database network analysis failed: {e}")
+        print("⚠️  Database network analysis unavailable, falling back to file-based analysis")
 
-    network = MisinformationNetwork()
-    network.load_data(data_path)
-    network.build_interaction_network()
+    # Fallback to file-based analysis if database analysis fails
+    if data_path:
+        logger.info(f"Using file-based network analysis on {data_path}")
+        from src.network_analysis import MisinformationNetwork
+        
+        network = MisinformationNetwork()
+        network.load_data(data_path)
+        network.build_interaction_network()
 
-    # Generate report
-    report = network.generate_network_report()
+        # Generate report (reinterpreted as community interaction analysis)
+        report = network.generate_network_report()
+        
+        # Save report
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = f"data/network_report_{timestamp}.json"
 
-    # Save report
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_path = f"data/network_report_{timestamp}.json"
+        with open(report_path, "w") as f:
+            json.dump(report, f, indent=2, default=str)
 
-    with open(report_path, "w") as f:
-        json.dump(report, f, indent=2, default=str)
-
-    logger.info(f"Network analysis complete. Report saved to {report_path}")
-    return report
+        logger.info(f"Network analysis complete. Report saved to {report_path}")
+        return report
+    else:
+        logger.error("No data source available for network analysis")
+        print("❌ Error: No database data or file path provided for network analysis")
+        return None
 
 
 def launch_annotation_tool(limit: int = 100, filter_criteria: Optional[Dict] = None):
@@ -258,9 +294,7 @@ def main():
         translate_keywords()
 
     elif args.command == "analyze":
-        if not args.data_path:
-            logger.error("--data-path required for analysis")
-            return
+        # data_path is now optional - prefer database analysis
         analyze_network(args.data_path)
 
     elif args.command == "annotate":
@@ -277,8 +311,9 @@ def main():
                 "Using legacy JSON file mode. Consider using database-driven annotation without --data-path"
             )
             # For backward compatibility, still support JSON file loading
-            from gradio_app.annotation_interface import AnnotationInterface
             import json
+
+            from gradio_app.annotation_interface import AnnotationInterface
 
             with open(args.data_path, "r") as f:
                 legacy_data = json.load(f)
@@ -311,10 +346,11 @@ def main():
                 "Using legacy JSON file mode. Consider using database-driven annotation without --data-path"
             )
             # For backward compatibility, still support JSON file loading
+            import json
+
             from gradio_app.enhanced_annotation_interface import (
                 EnhancedAnnotationInterface,
             )
-            import json
 
             with open(args.data_path, "r") as f:
                 legacy_data = json.load(f)
@@ -361,17 +397,13 @@ def main():
 
         logger.info(f"Demo data collected: {len(demo_data)} posts saved to {demo_path}")
 
-        # Run basic analysis
+        # Run basic community resilience analysis
         if demo_data:
-            from src.network_analysis import MisinformationNetwork
-
-            network = MisinformationNetwork()
-
             # Convert demo data to expected format
             with open(demo_path, "r") as f:
                 data = json.load(f)
 
-            # Quick analysis
+            # Quick community analysis
             total_posts = len(data)
             languages = {}
             newcomer_count = 0
@@ -382,33 +414,35 @@ def main():
                 if post.get("is_newcomer_related"):
                     newcomer_count += 1
 
-            print("\n🎯 Demo Results:")
-            print(f"   • Total posts collected: {total_posts}")
-            print(f"   • Languages detected: {list(languages.keys())}")
-            print(f"   • Newcomer-related posts: {newcomer_count}")
-            print(f"   • Data saved to: {demo_path}")
+            print("\n🤝 Community Resilience Demo Results:")
+            print(f"   • Total community posts collected: {total_posts}")
+            print(f"   • Languages in community discussions: {list(languages.keys())}")
+            print(f"   • Posts supporting newcomers: {newcomer_count}")
+            print(f"   • Community data saved to: {demo_path}")
 
             # Auto-generate visualizations for demo
-            print("\n📊 Generating demo visualizations...")
+            print("\n📊 Generating community analysis visualizations...")
             create_visualizations(demo_path, "demo_visualizations")
 
-            print("\n💡 Next steps:")
+            print("\n💡 Next steps for community resilience research:")
             print(
-                "   • View visualizations: Open demo_visualizations/*.html in browser"
+                "   • View community patterns: Open demo_visualizations/*.html in browser"
             )
             print(
-                f"   • Basic annotation: python main.py annotate --data-path {demo_path}"
+                f"   • Community analysis: python main.py annotate --data-path {demo_path}"
             )
+            print("   • Research interface: python launch_research_annotation.py")
+            print("   • Resilience analysis: python launch_community_resilience.py")
             print(
-                f"   • Enhanced annotation: python main.py annotate-enhanced --data-path {demo_path}"
-            )
-            print(
-                f"   • Network analysis: python main.py analyze --data-path {demo_path}"
+                f"   • Support network analysis: python main.py analyze --data-path {demo_path}"
             )
             print(
                 f"   • Generate more visualizations: python main.py visualize --data-path {demo_path}"
             )
 
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()

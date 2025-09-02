@@ -15,6 +15,7 @@ from loguru import logger
 from config.settings import Config
 from src.data_persistence import DataPersistenceManager
 from src.database_models import RedditComment, RedditPost
+from src.research_expertise_tracker import ResearchExpertiseTracker
 
 
 class EnhancedAnnotationInterface:
@@ -33,6 +34,7 @@ class EnhancedAnnotationInterface:
         self.current_post_index = 0
         self.posts_data = []
         self.db_manager = DataPersistenceManager()
+        self.expertise_tracker = ResearchExpertiseTracker()
 
         # Load posts from database
         self.load_posts_from_database()
@@ -40,9 +42,13 @@ class EnhancedAnnotationInterface:
         self.annotation_db = "data/enhanced_annotations.db"
         self.init_enhanced_database()
 
-        # User session tracking
-        self.current_user = "default_user"
-        self.session_stats = {"posts_reviewed": 0, "session_start": datetime.now()}
+        # User session tracking - now researcher-focused
+        self.current_user = "default_researcher"
+        self.session_stats = {
+            "analyses_completed": 0,
+            "session_start": datetime.now(),
+            "expertise_gained": [],
+        }
 
     def load_posts_from_database(self) -> None:
         """Load posts from PostgreSQL database for enhanced annotation"""
@@ -412,50 +418,149 @@ class EnhancedAnnotationInterface:
             score += 0.3
         return min(score, 1.0)
 
-    def get_enhanced_user_stats(self) -> str:
-        """Get enhanced user statistics for gamification"""
-        conn = sqlite3.connect(self.annotation_db)
-        cursor = conn.cursor()
+    def get_research_profile_stats(self) -> str:
+        """Get researcher expertise profile and development progress"""
+        # Get researcher profile from expertise tracker
+        profile = self.expertise_tracker.get_researcher_profile(self.current_user)
 
-        cursor.execute(
-            """
-            SELECT total_annotations, cultural_competency_score, community_expertise 
-            FROM enhanced_user_stats WHERE annotator = ?
-        """,
-            (self.current_user,),
-        )
-        result = cursor.fetchone()
-
-        if result:
-            total, cultural_score, expertise = result
-            expertise_list = json.loads(expertise) if expertise else []
+        if "error" in profile:
+            # Initialize new researcher
+            total_analyses = 0
+            expertise_summary = "New researcher - building expertise profile"
+            strengths = []
+            developing_areas = []
         else:
-            total, cultural_score, expertise_list = 0, 0.0, []
-
-        conn.close()
+            total_analyses = len(profile.get("recent_activities", []))
+            expertise_summary = profile.get("expertise_summary", "")
+            strengths = profile.get("strengths", [])
+            developing_areas = profile.get("developing_areas", [])
 
         session_time = datetime.now() - self.session_stats["session_start"]
 
-        stats_text = f"""
-        **📊 Enhanced Progress:**
-        - Session: {self.session_stats["posts_reviewed"]} posts reviewed
-        - Total: {total} posts annotated
-        - Cultural Competency: {cultural_score:.2f}/1.0
-        - Session time: {str(session_time).split(".")[0]}
-        - Progress: {self.current_post_index}/{len(self.posts_data)} posts
-        """
+        # Map domain keys to readable names
+        def get_domain_name(domain_key):
+            return self.expertise_tracker.expertise_domains.get(domain_key, {}).get(
+                "name", domain_key
+            )
 
-        # Enhanced achievement badges
-        if total >= 10:
-            stats_text += "\n🏆 **Getting Started** - 10+ annotations!"
-        if total >= 50:
-            stats_text += "\n🌟 **Contributor** - 50+ annotations!"
-        if total >= 100:
-            stats_text += "\n💎 **Expert Annotator** - 100+ annotations!"
-        if cultural_score >= 0.5:
-            stats_text += "\n🌍 **Cultural Expert** - High cultural competency!"
+        stats_text = f"""
+**🔬 Research Profile:**
+- Session: {self.session_stats["analyses_completed"]} analyses completed
+- Total Analyses: {total_analyses}
+- Session time: {str(session_time).split(".")[0]}
+- Progress: {self.current_post_index}/{len(self.posts_data)} posts
+
+**🌟 Expertise Summary:**
+{expertise_summary}
+"""
+
+        # Show expertise areas
+        if strengths:
+            stats_text += "\n**💎 Research Strengths:**\n"
+            for domain in strengths[:3]:  # Show top 3
+                stats_text += f"• {get_domain_name(domain)}\n"
+
+        if developing_areas:
+            stats_text += "\n**📈 Developing Expertise:**\n"
+            for domain in developing_areas[:3]:  # Show top 3
+                stats_text += f"• {get_domain_name(domain)}\n"
+
+        # Session expertise gained
+        if self.session_stats["expertise_gained"]:
+            stats_text += "\n**🎯 This Session:**\n"
+            for domain in set(self.session_stats["expertise_gained"]):
+                stats_text += f"• Practiced {get_domain_name(domain)}\n"
+
+        # Research achievement badges
+        if total_analyses >= 5:
+            stats_text += "\n🏆 **Emerging Researcher** - 5+ analyses!"
+        if total_analyses >= 20:
+            stats_text += "\n🌟 **Active Researcher** - 20+ analyses!"
+        if total_analyses >= 50:
+            stats_text += "\n💎 **Expert Researcher** - 50+ analyses!"
+        if len(strengths) >= 2:
+            stats_text += "\n🎓 **Multi-domain Expert** - Proficient in multiple areas!"
 
         return stats_text
+
+    def track_research_activity(
+        self,
+        analysis_type: str,
+        quality_score: float = 0.7,
+        community_focus: str = "",
+        description: str = "",
+    ):
+        """Track research activity for expertise development"""
+        # Map analysis types to expertise domains
+        domain_mapping = {
+            "peer_support_analysis": "peer_support_analysis",
+            "knowledge_broker_identification": "knowledge_broker_identification",
+            "cultural_adaptation": "cultural_bridging_analysis",
+            "health_info_quality": "health_info_quality",
+            "network_analysis": "network_analysis",
+            "community_engagement": "community_engagement",
+            "qualitative_analysis": "qualitative_analysis",
+        }
+
+        expertise_domain = domain_mapping.get(analysis_type, "qualitative_analysis")
+
+        # Track the activity
+        self.expertise_tracker.track_research_activity(
+            researcher_id=self.current_user,
+            activity_type="analysis_completed",
+            expertise_domain=expertise_domain,
+            description=description,
+            quality_score=quality_score,
+            community_focus=community_focus,
+        )
+
+        # Update session stats
+        self.session_stats["analyses_completed"] += 1
+        self.session_stats["expertise_gained"].append(expertise_domain)
+
+    def get_research_recommendations(self) -> str:
+        """Get personalized research focus recommendations"""
+        recommendations = self.expertise_tracker.recommend_research_focus(
+            self.current_user
+        )
+
+        if "error" in recommendations:
+            return """
+**🎯 Research Focus Recommendations:**
+
+*Complete a few analyses to get personalized recommendations!*
+
+**Suggested Starting Areas:**
+• **Peer Support Analysis** - Identify mutual aid patterns in community posts
+• **Cultural Adaptation Research** - Study how health info gets adapted across cultures  
+• **Health Information Quality** - Assess helpfulness of community-shared health advice
+"""
+
+        rec_text = "**🎯 Research Focus Recommendations:**\n\n"
+
+        # Continue developing areas
+        if recommendations["continue_developing"]:
+            rec_text += "**📈 Continue Building Expertise:**\n"
+            for area in recommendations["continue_developing"]:
+                rec_text += (
+                    f"• **{area['name']}** - Currently {area['current_level']}\n"
+                )
+                rec_text += f"  {area['next_steps']}\n"
+
+        # New areas to explore
+        if recommendations["new_areas"]:
+            rec_text += "\n**🌟 Explore New Areas:**\n"
+            for area in recommendations["new_areas"][:3]:  # Top 3
+                rec_text += f"• **{area['name']}** - {area['description']}\n"
+                rec_text += f"  {area['rationale']}\n"
+
+        # Specialization opportunities
+        if recommendations["specialization_paths"]:
+            rec_text += "\n**💎 Lead Research Opportunities:**\n"
+            for path in recommendations["specialization_paths"]:
+                rec_text += f"• {path}\n"
+
+        return rec_text
 
     def generate_classification_suggestions(self, post, lang_analysis):
         """Generate intelligent classification suggestions"""
@@ -491,7 +596,7 @@ class EnhancedAnnotationInterface:
             post = self.get_current_post()
 
             if "error" in post:
-                return post["error"], "", "", "", self.get_enhanced_user_stats()
+                return post["error"], "", "", "", self.get_research_profile_stats()
 
             # Enhanced post display with language analysis
             lang_analysis = self.analyze_language_patterns(
@@ -560,7 +665,7 @@ class EnhancedAnnotationInterface:
                 comments_display,
                 health_context,
                 suggestions,
-                self.get_enhanced_user_stats(),
+                self.get_research_profile_stats(),
             )
 
         def submit_enhanced_annotation(
@@ -578,9 +683,38 @@ class EnhancedAnnotationInterface:
             suggested_response,
             resource_needed,
         ):
-            """Handle enhanced annotation submission"""
+            """Handle enhanced research analysis submission"""
             if not category:
-                return "Please select a category!", self.get_enhanced_user_stats()
+                return "Please select a category!", self.get_research_profile_stats()
+
+            # Determine analysis type for expertise tracking
+            analysis_type = "qualitative_analysis"  # default
+            community_focus = target_community or ""
+
+            if "support" in category.lower() or "helpful" in category.lower():
+                analysis_type = "peer_support_analysis"
+            elif "cultural" in notes.lower() or "bridge" in notes.lower():
+                analysis_type = "cultural_adaptation"
+            elif "quality" in notes.lower() or "accurate" in category.lower():
+                analysis_type = "health_info_quality"
+            elif "network" in notes.lower() or "community" in notes.lower():
+                analysis_type = "network_analysis"
+
+            # Calculate quality score based on completeness and confidence
+            quality_score = (confidence + (1.0 if notes.strip() else 0.5)) / 2
+            if severity_level > 0:
+                quality_score += 0.1
+            if health_topic.strip():
+                quality_score += 0.1
+            quality_score = min(quality_score, 1.0)
+
+            # Track research activity for expertise development
+            self.track_research_activity(
+                analysis_type=analysis_type,
+                quality_score=quality_score,
+                community_focus=community_focus,
+                description=f"Analyzed {category} post in r/{self.get_current_post().get('subreddit', 'unknown')}",
+            )
 
             result = self.save_enhanced_annotation(
                 category,
@@ -598,7 +732,7 @@ class EnhancedAnnotationInterface:
                 resource_needed,
             )
 
-            return result, self.get_enhanced_user_stats()
+            return result, self.get_research_profile_stats()
 
         def next_post():
             """Move to next post without annotating"""
@@ -607,12 +741,12 @@ class EnhancedAnnotationInterface:
 
         # Create the enhanced Gradio interface
         with gr.Blocks(
-            title="Enhanced Health Misinformation Annotation Tool",
+            title="Community Resilience Research Interface",
             theme=gr.themes.Soft(),
         ) as iface:
-            gr.Markdown("# 🏥 Enhanced Health Misinformation Annotation Tool")
+            gr.Markdown("# 🔬 Community Resilience Research Interface")
             gr.Markdown(
-                "Advanced annotation interface supporting severity analysis, cultural competency, and intervention planning"
+                "Research-grade analysis tool for studying supportive digital health communities with expertise development tracking"
             )
 
             with gr.Row():
@@ -625,8 +759,13 @@ class EnhancedAnnotationInterface:
 
                 with gr.Column(scale=2):
                     stats_display = gr.Markdown(
-                        value=self.get_enhanced_user_stats(),
-                        label="Enhanced Progress Tracking",
+                        value=self.get_research_profile_stats(),
+                        label="Research Expertise Profile",
+                    )
+
+                    recommendations_display = gr.Markdown(
+                        value=self.get_research_recommendations(),
+                        label="Research Focus Recommendations",
                     )
 
                     health_context = gr.Textbox(
@@ -650,12 +789,14 @@ class EnhancedAnnotationInterface:
 
                     category = gr.Radio(
                         choices=[
-                            "Accurate",
-                            "Misinformation",
-                            "Unclear/Mixed",
+                            "Peer Support",
+                            "Knowledge Sharing",
+                            "Help Seeking",
+                            "Cultural Bridging",
+                            "Resource Sharing",
                             "Off-topic",
                         ],
-                        label="Content Category",
+                        label="Community Function",
                         value=None,
                     )
 
@@ -669,37 +810,41 @@ class EnhancedAnnotationInterface:
                         lines=2,
                     )
 
-                # Enhanced severity analysis (middle column)
+                # Community impact analysis (middle column)
                 with gr.Column():
-                    gr.Markdown("### ⚠️ Severity Analysis")
+                    gr.Markdown("### 💡 Community Impact Analysis")
 
                     severity_level = gr.Slider(
                         minimum=1,
                         maximum=5,
                         step=1,
-                        label="Severity Level (1=Misconception, 5=Dangerous)",
-                        value=1,
+                        label="Support Quality (1=Basic, 5=Exceptional)",
+                        value=3,
                     )
 
                     misinformation_type = gr.Radio(
-                        choices=["misconception", "harmful", "malicious"],
-                        label="Misinformation Type",
-                        value="misconception",
+                        choices=["informational", "emotional", "practical"],
+                        label="Support Type",
+                        value="informational",
                     )
 
                     harm_potential = gr.Radio(
-                        choices=["low", "medium", "high", "critical"],
-                        label="Harm Potential",
-                        value="low",
+                        choices=["low", "medium", "high", "very high"],
+                        label="Community Benefit",
+                        value="medium",
                     )
 
                     urgency_score = gr.Slider(
-                        minimum=1, maximum=5, step=1, label="Response Urgency", value=1
+                        minimum=1,
+                        maximum=5,
+                        step=1,
+                        label="Replication Priority",
+                        value=3,
                     )
 
-                # Intervention planning (right column)
+                # Community support planning (right column)
                 with gr.Column():
-                    gr.Markdown("### 🎯 Intervention Planning")
+                    gr.Markdown("### 🤝 Community Support Enhancement")
 
                     target_community = gr.Dropdown(
                         choices=[
@@ -749,24 +894,24 @@ class EnhancedAnnotationInterface:
 
                     suggested_response = gr.Radio(
                         choices=[
-                            "educate",
-                            "fact_check",
-                            "resource_link",
-                            "urgent_intervention",
+                            "amplify_support",
+                            "provide_resources",
+                            "facilitate_connection",
+                            "document_practice",
                         ],
-                        label="Suggested Response",
-                        value="educate",
+                        label="Enhancement Action",
+                        value="amplify_support",
                     )
 
                     resource_needed = gr.Textbox(
-                        label="Resources Needed",
-                        placeholder="Specific resources or corrections needed...",
+                        label="Resources to Amplify",
+                        placeholder="Resources to enhance or replicate this community support pattern...",
                         lines=2,
                     )
 
             with gr.Row():
                 submit_btn = gr.Button(
-                    "✅ Submit Enhanced Annotation", variant="primary", size="lg"
+                    "✅ Submit Community Analysis", variant="primary", size="lg"
                 )
                 skip_btn = gr.Button("⏭️ Skip Post", variant="secondary")
 
@@ -800,6 +945,9 @@ class EnhancedAnnotationInterface:
                     suggestions,
                     stats_display,
                 ],
+            ).then(
+                fn=lambda: self.get_research_recommendations(),
+                outputs=[recommendations_display],
             )
 
             skip_btn.click(
@@ -823,6 +971,9 @@ class EnhancedAnnotationInterface:
                     suggestions,
                     stats_display,
                 ],
+            ).then(
+                fn=lambda: self.get_research_recommendations(),
+                outputs=[recommendations_display],
             )
 
         return iface

@@ -18,8 +18,9 @@ GOOGLE_AVAILABLE = False  # Disabled due to async compatibility issues
 try:
     from deep_translator import GoogleTranslator as DeepGoogleTranslator
     from deep_translator import MyMemoryTranslator
+
     # Remove LibreTranslator to avoid potential issues
-    
+
     DEEP_TRANSLATOR_AVAILABLE = True
     logger.info("Deep-translator backends loaded successfully")
 except ImportError:
@@ -156,13 +157,13 @@ class TranslationService:
             from langdetect import detect
 
             detected = detect(text)
-            
+
             # Map langdetect codes to our standard codes
             if detected == "zh-cn":
                 return "zh-CN"
             elif detected == "zh-tw":
                 return "zh-TW"
-            
+
             return detected
         except Exception as e:
             logger.warning(f"Language detection failed: {e}")

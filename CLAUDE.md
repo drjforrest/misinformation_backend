@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Health Misinformation Detection & Network Analysis Platform that detects and analyzes health misinformation within immigrant communities on Reddit. The platform combines social network analysis with human-validated machine learning, multilingual content processing, and semantic embeddings using PostgreSQL with pgvector.
+This is a Community Resilience & Social Capital Analysis Platform that studies supportive digital health ecosystems within immigrant communities on Reddit. The platform combines social network analysis, community resilience measurement, and health information quality assessment to understand how communities support each other's health and wellbeing, multilingual content processing, and semantic embeddings using PostgreSQL with pgvector.
 
 ## Key Commands
 
@@ -31,8 +31,14 @@ python main.py collect-db
 # Multilingual data collection with translation
 python main.py multilingual-collect-db
 
-# Test automated collection pipeline
+# Run automated collection (default behavior)
 python scripts/automated_collection.py
+
+# Run with specific options
+python scripts/automated_collection.py --collect          # Explicit collection
+python scripts/automated_collection.py --health-check     # Health check only
+python scripts/automated_collection.py --report 7         # Generate 7-day aggregate report
+python scripts/automated_collection.py --report 30        # Generate monthly report
 ```
 
 ### Analysis and Visualization
@@ -48,6 +54,12 @@ python launch_dashboard.py
 
 # Launch research-grade analytics interface
 python launch_research_analytics.py
+
+# Launch community resilience analysis interface
+python launch_community_resilience.py
+
+# Launch research annotation interface (with expertise tracking)
+python launch_research_annotation.py
 ```
 
 ### Development and Testing
@@ -81,11 +93,14 @@ python real_data_research_demo.py
 - `network_analysis.py` - NetworkX-based social network analysis
 - `research_visualizations.py` - Data visualization and research outputs
 - `analytics_dashboard.py` - Real-time analytics dashboard
+- `health_info_quality.py` - Community-shared health information quality assessment
+- `research_expertise_tracker.py` - Research team expertise development tracking
 
 **Interface Layer**
 - `gradio_app/enhanced_annotation_interface.py` - Full-featured research annotation UI
 - `gradio_app/analytics_dashboard_interface.py` - Analytics dashboard interface
 - `gradio_app/research_analytics_interface.py` - Research-grade investigational tools
+- `gradio_app/community_resilience_interface.py` - Community resilience & social capital analysis
 
 ### Database Schema
 
@@ -116,11 +131,27 @@ All configuration is handled through `config/settings.py` using environment vari
 - Health keyword detection and classification
 
 **Research Pipeline**
-- Human annotation interface for training data
-- Network analysis of information spread
+- Community resilience measurement and analysis
+- Peer support pattern identification
+- Knowledge broker discovery and analysis
+- Health information quality assessment
+- Cultural adaptation of health information analysis
+- Network analysis of supportive relationships
+- Research team expertise development tracking
 - Real-time analytics dashboard
-- Research-grade investigational tools with advanced search, pattern analysis, and intervention planning
 - Automated data collection with cron support
+
+**Research Expertise Domains Tracked**
+- **Peer Support Analysis** - Identifying mutual aid networks and support patterns
+- **Knowledge Broker Identification** - Finding community knowledge leaders and influencers  
+- **Cultural Bridging Analysis** - Understanding cross-cultural health information adaptation
+- **Health Information Quality Assessment** - Evaluating helpfulness of community-shared health info
+- **LGBTQ+ Health Communities** - Specialized analysis of gay men's health communities
+- **Newcomer Community Resilience** - Immigrant/refugee health community dynamics
+- **Multilingual Analysis** - Cross-language community resilience patterns
+- **Network Analysis** - Technical social network analysis and visualization
+- **Qualitative Analysis** - Deep qualitative analysis of community interactions
+- **Community-Based Participatory Research** - Engaging communities as research partners
 
 ## Development Notes
 

@@ -45,10 +45,14 @@ def test_basic_translation():
         if lang == "en":  # Skip English
             continue
         try:
-            result = translation_service.translate_text(text, target_lang="en", source_lang=lang)
+            result = translation_service.translate_text(
+                text, target_lang="en", source_lang=lang
+            )
             if not result.get("error"):
                 print(f"   ✅ '{text}' -> '{result['translation']}'")
-                print(f"      Backend: {result['backend_used']}, Confidence: {result['confidence']}")
+                print(
+                    f"      Backend: {result['backend_used']}, Confidence: {result['confidence']}"
+                )
             else:
                 print(f"   ❌ Translation failed: {result['error']}")
         except Exception as e:
@@ -74,9 +78,13 @@ def test_health_keyword_translation():
         print(f"\nTranslating '{keyword}':")
         for lang in target_languages:
             try:
-                result = translation_service.translate_text(keyword, target_lang=lang, source_lang="en")
+                result = translation_service.translate_text(
+                    keyword, target_lang=lang, source_lang="en"
+                )
                 if not result.get("error"):
-                    print(f"   {lang}: {result['translation']} (backend: {result['backend_used']})")
+                    print(
+                        f"   {lang}: {result['translation']} (backend: {result['backend_used']})"
+                    )
                 else:
                     print(f"   {lang}: ❌ Error - {result['error']}")
             except Exception as e:
