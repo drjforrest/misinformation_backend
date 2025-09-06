@@ -3,21 +3,17 @@ Data persistence module for Reddit health misinformation research platform
 Handles database operations with proper duplicate detection and upsert logic
 """
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.exc import IntegrityError
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime, timedelta
-from loguru import logger
 import json
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+
+from loguru import logger
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, sessionmaker
 
 from config.settings import Config
-from src.database_models import (
-    RedditPost,
-    RedditComment,
-    PostAnnotation,
-    Base,
-)
+from src.database_models import Base, PostAnnotation, RedditComment, RedditPost
 
 
 class DataPersistenceManager:
@@ -106,6 +102,12 @@ class DataPersistenceManager:
                     clean_post_data = {
                         k: v for k, v in post_data.items() if not k.startswith("_")
                     }
+
+                    # Handle special fields that need JSON serialization
+                    if "lgbtq_contexts" in clean_post_data:
+                        clean_post_data["lgbtq_contexts_json"] = json.dumps(
+                            clean_post_data.pop("lgbtq_contexts")
+                        )
 
                     # Create post object
                     post = RedditPost(**clean_post_data)

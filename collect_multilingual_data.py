@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Multilingual Data Collection Script
+Multilingual Data Collection Script with configurable subreddits
 Expands data collection to include diverse language communities and health-related subreddits
 """
 
 import time
 from datetime import datetime
 from typing import List, Dict
+import json
+from pathlib import Path
 from loguru import logger
 
 from src.multilingual_scraper import MultilingualRedditScraper
@@ -16,92 +18,146 @@ from config.settings import ResearchConfig
 class MultilingualHealthCollector:
     """Enhanced data collector targeting multilingual health communities"""
 
-    def __init__(self):
+    def __init__(self, config_file="config/scraping_config.json"):
         self.scraper = MultilingualRedditScraper(
             enable_database=True, enable_translation=True
         )
 
-        # Expanded subreddit list targeting multilingual communities
-        self.multilingual_subreddits = [
-            # Canadian immigration and newcomer communities (likely multilingual)
-            "NewToCanada",
-            "ImmigrationCanada",
-            "immigrationlaw",
-            "PersonalFinanceCanada",
-            # Major Canadian cities with diverse populations
-            "toronto",
-            "vancouver",
-            "montreal",
-            "calgary",
-            "edmonton",
-            "askTO",
-            "vancouver4friends",
-            # Health-focused communities
-            "HealthAnxiety",
-            "medical_advice",
-            "AskDocs",
-            "STD",
-            "std",
-            "HIV",
-            "sexualhealth",
-            "sexualhealthtalk",
-            # LGBTQ+ communities with health discussions
-            "askgaybros",
-            "gaybros",
-            "lgbt",
-            "ainbow",
-            "gay_irl",
-            "torontogaybros",
-            # General communities where health discussions happen
-            "relationship_advice",
-            "TooAfraidToAsk",
-            "NoStupidQuestions",
-            "offmychest",
-            "CasualConversation",
-            # Language-specific communities (health questions often appear here)
-            "Philippines",
-            "canada",
-            "China",
-            "Chinese",
-            "italy",
-            "Spain",
-            "mexico",
-            "india",
-            "pakistan",
-        ]
+        # Load configuration
+        self.config = self._load_config(config_file)
+        self.multilingual_subreddits = self.config.get("multilingual_subreddits", [])
 
-        # Health keywords in multiple languages for better detection
-        self.multilingual_keywords = {
-            "english": ResearchConfig.PRIMARY_KEYWORDS
-            + ResearchConfig.COLLOQUIAL_TERMS,
-            "spanish": [
-                "VIH",
-                "PrEP",
-                "sífilis",
-                "clamidia",
-                "gonorrea",
-                "condón",
-                "salud sexual",
-            ],
-            "tagalog": [
-                "HIV",
-                "PrEP",
-                "silis",
-                "STD",
-                "kalusugang sekswal",
-                "proteksyon",
-            ],
-            "chinese": ["艾滋病", "HIV", "梅毒", "淋病", "衣原体", "性健康", "安全套"],
-            "french": [
-                "VIH",
-                "PrEP",
-                "syphilis",
-                "chlamydia",
-                "gonorrhée",
-                "santé sexuelle",
-            ],
-            "punjabi": ["HIV", "ਏਚਆਈਵੀ", "ਸਿਫਿਲਿਸ", "ਸੈਕਸੁਅਲ ਸਿਹਤ"],
-        }
+        # Health keywords in multiple languages
+        self.multilingual_keywords = self.config.get(
+            "health_keywords",
+            {
+                "english": ResearchConfig.PRIMARY_KEYWORDS
+                + ResearchConfig.COLLOQUIAL_TERMS,
+                "spanish": [
+                    "VIH",
+                    "PrEP",
+                    "sífilis",
+                    "clamidia",
+                    "gonorrea",
+                    "condón",
+                    "salud sexual",
+                ],
+                "tagalog": [
+                    "HIV",
+                    "PrEP",
+                    "silis",
+                    "STD",
+                    "kalusugang sekswal",
+                    "proteksyon",
+                ],
+                "chinese": [
+                    "艾滋病",
+                    "HIV",
+                    "梅毒",
+                    "淋病",
+                    "衣原体",
+                    "性健康",
+                    "安全套",
+                ],
+                "french": [
+                    "VIH",
+                    "PrEP",
+                    "syphilis",
+                    "chlamydia",
+                    "gonorrhée",
+                    "santé sexuelle",
+                ],
+                "punjabi": ["HIV", "ਏਚਆਈਵੀ", "ਸਿਫਿਲਿਸ", "ਸੈਕਸੁਅਲ ਸਿਹਤ"],
+            },
+        )
+
+    def _load_config(self, config_file):
+        """Load configuration from JSON file"""
+        config_path = Path(config_file)
+        if config_path.exists():
+            with open(config_path, "r") as f:
+                return json.load(f)
+        else:
+            logger.warning(f"Config file {config_file} not found, using defaults")
+            return {
+                "multilingual_subreddits": [
+                    "NewToCanada",
+                    "ImmigrationCanada",
+                    "immigrationlaw",
+                    "PersonalFinanceCanada",
+                    "toronto",
+                    "vancouver",
+                    "montreal",
+                    "calgary",
+                    "edmonton",
+                    "askTO",
+                    "vancouver4friends",
+                    "HealthAnxiety",
+                    "medical_advice",
+                    "AskDocs",
+                    "STD",
+                    "std",
+                    "HIV",
+                    "sexualhealth",
+                    "sexualhealthtalk",
+                    "askgaybros",
+                    "gaybros",
+                    "lgbt",
+                    "ainbow",
+                    "gay_irl",
+                    "torontogaybros",
+                    "relationship_advice",
+                    "TooAfraidToAsk",
+                    "NoStupidQuestions",
+                    "offmychest",
+                    "CasualConversation",
+                    "Philippines",
+                    "canada",
+                    "China",
+                    "Chinese",
+                    "italy",
+                    "Spain",
+                    "mexico",
+                    "india",
+                    "pakistan",
+                ]
+            }
+
+    def add_subreddit(self, subreddit_name):
+        """Add a subreddit to the collection list"""
+        if subreddit_name not in self.multilingual_subreddits:
+            self.multilingual_subreddits.append(subreddit_name)
+            logger.info(f"Added r/{subreddit_name} to collection list")
+            return True
+        return False
+
+    def remove_subreddit(self, subreddit_name):
+        """Remove a subreddit from the collection list"""
+        if subreddit_name in self.multilingual_subreddits:
+            self.multilingual_subreddits.remove(subreddit_name)
+            logger.info(f"Removed r/{subreddit_name} from collection list")
+            return True
+        return False
+
+    def load_discovered_subreddits(
+        self, discovered_file="data/discovered_subreddits.json"
+    ):
+        """Load discovered subreddits and add them to the collection list"""
+        discovered_path = Path(discovered_file)
+        if discovered_path.exists():
+            with open(discovered_path, "r") as f:
+                discovered = json.load(f)
+
+            added_count = 0
+            for subreddit_name in discovered.keys():
+                if self.add_subreddit(subreddit_name):
+                    added_count += 1
+
+            logger.info(f"Added {added_count} discovered subreddits to collection list")
+            return added_count
+        else:
+            logger.warning(f"Discovered subreddits file {discovered_file} not found")
+            return 0
 
     def collect_targeted_multilingual_data(
         self, posts_per_subreddit: int = 50
@@ -361,6 +417,18 @@ def main():
     print("=" * 50)
     print("This will collect health-related posts from diverse communities")
     print("including immigrant, newcomer, and multilingual subreddits.\n")
+
+    # Ask for configuration options
+    collector = MultilingualHealthCollector()
+
+    print(f"Loaded {len(collector.multilingual_subreddits)} subreddits from config")
+
+    # Option to load discovered subreddits
+    response = input("Load discovered subreddits? (y/n): ").lower().strip()
+    if response == "y":
+        added = collector.load_discovered_subreddits()
+        print(f"Added {added} discovered subreddits")
+        print(f"Total subreddits: {len(collector.multilingual_subreddits)}")
 
     # Ask for confirmation
     response = (

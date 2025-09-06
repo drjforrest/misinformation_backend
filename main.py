@@ -136,41 +136,49 @@ def analyze_network(data_path: str = None):
     # Try database-based analysis first (preferred for community resilience)
     try:
         network_data = NetworkAnalyzer().build_user_network()
-        
-        if network_data and network_data.get('nodes'):
-            logger.info(f"Database analysis: Found {len(network_data['nodes'])} community members in support network")
-            
+
+        if network_data and network_data.get("nodes"):
+            logger.info(
+                f"Database analysis: Found {len(network_data['nodes'])} community members in support network"
+            )
+
             # Generate database-based network report
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_path = f"data/community_network_report_{timestamp}.json"
-            
+
             with open(report_path, "w") as f:
                 json.dump(network_data, f, indent=2)
-            
+
             logger.info(f"Community network analysis saved to {report_path}")
-            print(f"\n🤝 Community Support Network Analysis Complete!")
-            print(f"   • Network nodes (community members): {len(network_data['nodes'])}")
-            print(f"   • Network edges (supportive interactions): {len(network_data.get('edges', []))}")
+            print("\n🤝 Community Support Network Analysis Complete!")
+            print(
+                f"   • Network nodes (community members): {len(network_data['nodes'])}"
+            )
+            print(
+                f"   • Network edges (supportive interactions): {len(network_data.get('edges', []))}"
+            )
             print(f"   • Analysis saved to: {report_path}")
-            print(f"   • View network: python launch_community_resilience.py")
+            print("   • View network: python launch_community_resilience.py")
             return network_data
-            
+
     except Exception as e:
         logger.warning(f"Database network analysis failed: {e}")
-        print("⚠️  Database network analysis unavailable, falling back to file-based analysis")
+        print(
+            "⚠️  Database network analysis unavailable, falling back to file-based analysis"
+        )
 
     # Fallback to file-based analysis if database analysis fails
     if data_path:
         logger.info(f"Using file-based network analysis on {data_path}")
         from src.network_analysis import MisinformationNetwork
-        
+
         network = MisinformationNetwork()
         network.load_data(data_path)
         network.build_interaction_network()
 
         # Generate report (reinterpreted as community interaction analysis)
         report = network.generate_network_report()
-        
+
         # Save report
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_path = f"data/network_report_{timestamp}.json"

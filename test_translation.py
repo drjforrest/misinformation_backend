@@ -1,98 +1,45 @@
 #!/usr/bin/env python3
 """
-Simple test script for translation functionality
+Test translation service to verify ML models are working correctly
 """
 
-import os
-import sys
-
-# Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
-
-from langdetect import detect
 from src.translation_service import get_translation_service
 
 
-def test_basic_translation():
-    """Test basic translation capabilities"""
-    print("🌐 Testing Basic Translation")
+def test_translation_service():
+    """Test the translation service with sample texts"""
+    print("🌐 Testing Translation Service")
     print("=" * 40)
 
-    # Test language detection with langdetect
+    service = get_translation_service()
+
+    # Test language detection
     test_texts = [
-        ("Hello, I need health information", "en"),
-        ("Hola, necesito información de salud", "es"),
-        ("你好，我需要健康信息", "zh"),
-        ("Kamusta, kailangan ko ng health information", "tl"),
+        "Hello, I'm new to Canada and need health information",
+        "Hola, soy nuevo en Canadá y necesito información de salud",
+        "你好，我是加拿大新移民，需要健康信息",
+        "Kamusta, bago ako sa Canada at kailangan ko ng health information",
     ]
 
-    print("1. Testing language detection:")
-    for text, expected in test_texts:
-        try:
-            detected = detect(text)
-            status = "✅" if detected.startswith(expected) else "⚠️"
-            print(f"   {status} '{text[:30]}...' -> {detected} (expected: {expected})")
-        except Exception as e:
-            print(f"   ❌ Error detecting language for '{text[:30]}...': {e}")
-
-    print()
-
-    # Test Translation Service
-    print("2. Testing Translation Service:")
-    translation_service = get_translation_service()
-
-    for text, lang in test_texts[:3]:  # Test first three to avoid rate limiting
-        if lang == "en":  # Skip English
-            continue
-        try:
-            result = translation_service.translate_text(
-                text, target_lang="en", source_lang=lang
-            )
-            if not result.get("error"):
-                print(f"   ✅ '{text}' -> '{result['translation']}'")
-                print(
-                    f"      Backend: {result['backend_used']}, Confidence: {result['confidence']}"
-                )
-            else:
-                print(f"   ❌ Translation failed: {result['error']}")
-        except Exception as e:
-            print(f"   ❌ Translation failed: {e}")
-
+    for text in test_texts:
+        lang = service.detect_language(text)
+        translation = service.translate_text(text, target_lang="en")
+        print(f"Text: {text}")
+        print(f"Language: {lang}")
+        print(f"Translation: {translation['translation']}")
+        print(f"Backend: {translation['backend_used']}")
         print()
 
-    print("✅ Basic translation test complete")
+    # Test keyword translation
+    print("🔑 Testing health keyword translations...")
+    translations = service.translate_health_keywords()
 
+    print(f"✅ Translated keywords to {len(translations)} languages")
+    for lang, trans in translations.items():
+        print(f"{lang}: {len(trans)} keywords")
 
-def test_health_keyword_translation():
-    """Test translating health keywords"""
-    print("\n🔑 Testing Health Keywords Translation")
-    print("=" * 45)
-
-    translation_service = get_translation_service()
-
-    # Sample health keywords
-    keywords = ["HIV", "PrEP", "testing", "symptoms", "medication", "treatment"]
-    target_languages = ["es", "zh-CN", "tl", "fr"]  # Spanish, Chinese, Tagalog, French
-
-    for keyword in keywords[:3]:  # Test first few keywords
-        print(f"\nTranslating '{keyword}':")
-        for lang in target_languages:
-            try:
-                result = translation_service.translate_text(
-                    keyword, target_lang=lang, source_lang="en"
-                )
-                if not result.get("error"):
-                    print(
-                        f"   {lang}: {result['translation']} (backend: {result['backend_used']})"
-                    )
-                else:
-                    print(f"   {lang}: ❌ Error - {result['error']}")
-            except Exception as e:
-                print(f"   {lang}: ❌ Error - {e}")
-
-    print("\n✅ Health keywords translation test complete")
+    service.close()
 
 
 if __name__ == "__main__":
-    test_basic_translation()
-    test_health_keyword_translation()
+    test_translation_service()

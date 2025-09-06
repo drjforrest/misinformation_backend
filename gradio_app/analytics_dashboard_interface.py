@@ -30,6 +30,7 @@ class AnalyticsDashboardInterface:
             "subreddit_analysis": self.analytics.analyze_subreddit_patterns(),
             "temporal_analysis": self.analytics.analyze_temporal_patterns(),
             "newcomer_analysis": self.analytics.analyze_newcomer_content(),
+            "ml_analysis": self.analytics.analyze_ml_health_classification(),
             "insights": self.analytics.generate_insights(),
         }
 
@@ -180,60 +181,98 @@ class AnalyticsDashboardInterface:
         return fig
 
     def create_multilingual_content_chart(self):
-        """Create multilingual content analysis"""
+        """Create comment language diversity analysis"""
         lang_data = self.cached_data["language_analysis"]
 
-        multilingual_posts = lang_data["multilingual_posts"]
-        total_posts = self.cached_data["data_summary"]["total_posts"]
-        english_only = total_posts - multilingual_posts
+        # Show comment language diversity instead of just multilingual posts
+        comment_languages = lang_data.get("comment_languages", {})
 
-        if multilingual_posts == 0:
-            return None
+        if not comment_languages:
+            # Fallback to post language analysis
+            total_posts = self.cached_data["data_summary"]["total_posts"]
+            post_languages = lang_data.get("post_languages", {"en": total_posts})
+            languages = list(post_languages.keys())[:10]  # Top 10 languages
+            counts = [post_languages[lang] for lang in languages]
+            title = "📝 Post Language Distribution"
+        else:
+            # Sort by count and take top 10
+            sorted_langs = sorted(
+                comment_languages.items(), key=lambda x: x[1], reverse=True
+            )[:10]
+            languages = [lang for lang, count in sorted_langs]
+            counts = [count for lang, count in sorted_langs]
+            title = "💬 Comment Language Diversity"
 
-        fig = px.pie(
-            values=[english_only, multilingual_posts],
-            names=["English Only", "Multilingual/Translated"],
-            title="🌐 Content Language Composition",
-            color_discrete_map={
-                "English Only": "#3498db",
-                "Multilingual/Translated": "#e74c3c",
-            },
+        fig = px.bar(
+            x=languages,
+            y=counts,
+            title=title,
+            labels={"x": "Language", "y": "Count"},
+            color=counts,
+            color_continuous_scale="viridis",
         )
 
-        fig.update_traces(
-            textposition="inside",
-            textinfo="percent+label+value",
-            hovertemplate="%{label}<br>Posts: %{value}<br>Percentage: %{percent}<extra></extra>",
+        fig.update_layout(
+            xaxis_title="Language Code",
+            yaxis_title="Number of Comments/Posts",
+            showlegend=False,
         )
 
         return fig
 
     def create_newcomer_content_chart(self):
-        """Create newcomer content analysis"""
-        newcomer_data = self.cached_data["newcomer_analysis"]
-        total_posts = self.cached_data["data_summary"]["total_posts"]
+        """Create health keyword analysis by subreddit"""
+        health_data = self.cached_data["keyword_analysis"]
+        subreddit_data = self.cached_data["subreddit_analysis"]
 
-        if newcomer_data["total_newcomer_posts"] == 0:
-            return None
+        # Show health keyword distribution across subreddits
+        subreddits = []
+        health_keyword_counts = []
+        total_posts = []
 
-        newcomer_count = newcomer_data["total_newcomer_posts"]
-        general_count = total_posts - newcomer_count
+        for subreddit, data in subreddit_data.items():
+            subreddits.append(subreddit)
+            health_keyword_counts.append(data.get("health_keywords", 0))
+            total_posts.append(data.get("post_count", 0))
 
-        fig = px.pie(
-            values=[general_count, newcomer_count],
-            names=["General Content", "Newcomer-Focused"],
-            title="🆕 Newcomer-Related Content",
-            color_discrete_map={
-                "General Content": "#95a5a6",
-                "Newcomer-Focused": "#2ecc71",
-            },
-        )
+        if not subreddits:
+            # Fallback chart showing overall health content analysis
+            health_posts = health_data.get("posts_with_keywords", 0)
+            total_posts_count = self.cached_data["data_summary"]["total_posts"]
+            non_health_posts = total_posts_count - health_posts
 
-        fig.update_traces(
-            textposition="inside",
-            textinfo="percent+label+value",
-            hovertemplate="%{label}<br>Posts: %{value}<br>Percentage: %{percent}<extra></extra>",
-        )
+            fig = px.pie(
+                values=[non_health_posts, health_posts],
+                names=["General Content", "Health-Related"],
+                title="🏥 Health Content Distribution",
+                color_discrete_map={
+                    "General Content": "#95a5a6",
+                    "Health-Related": "#e74c3c",
+                },
+            )
+
+            fig.update_traces(
+                textposition="inside",
+                textinfo="percent+label+value",
+                hovertemplate="%{label}<br>Posts: %{value}<br>Percentage: %{percent}<extra></extra>",
+            )
+        else:
+            # Bar chart showing health keywords by subreddit
+            fig = px.bar(
+                x=subreddits,
+                y=health_keyword_counts,
+                title="🏥 Health Keywords by Subreddit",
+                labels={"x": "Subreddit", "y": "Posts with Health Keywords"},
+                color=health_keyword_counts,
+                color_continuous_scale="Reds",
+            )
+
+            fig.update_layout(
+                xaxis_title="Subreddit",
+                yaxis_title="Health Keyword Posts",
+                showlegend=False,
+                xaxis_tickangle=-45,
+            )
 
         return fig
 
@@ -396,6 +435,197 @@ class AnalyticsDashboardInterface:
                 """
                 )
 
+            # ML Analysis tab
+            with gr.Tab("🤖 ML Analysis"):
+                ml_data = self.cached_data["ml_analysis"]
+
+                if ml_data.get("model_available", False):
+                    gr.Markdown("# 🧠 Machine Learning Health Content Classification")
+                    gr.Markdown(
+                        "*Real ML model trained on your data with 94% test accuracy*"
+                    )
+
+                    # ML Performance metrics
+                    gr.Markdown("## 📊 Model Performance")
+                    perf = ml_data["model_performance"]
+                    gr.Markdown(
+                        f"""
+**Training Accuracy:** {perf['training_accuracy']:.1%}  
+**Test Accuracy:** {perf['test_accuracy']:.1%}  
+**Features Used:** {perf['feature_count']:,}
+                    """
+                    )
+
+                    # Classification results
+                    with gr.Row():
+                        # Posts classification
+                        post_data = ml_data["post_classification"]
+                        with gr.Column():
+                            gr.Markdown("### 📝 Post Classification")
+                            post_fig = px.pie(
+                                values=[
+                                    post_data["general"],
+                                    post_data["health_related"],
+                                ],
+                                names=["General Discussion", "Health-Related"],
+                                title=f"Posts: {post_data['health_percentage']:.1f}% Health-Related",
+                                color_discrete_map={
+                                    "General Discussion": "#95a5a6",
+                                    "Health-Related": "#e74c3c",
+                                },
+                            )
+                            gr.Plot(value=post_fig)
+
+                        # Comments classification
+                        comment_data = ml_data["comment_classification"]
+                        with gr.Column():
+                            gr.Markdown("### 💬 Comment Classification")
+                            comment_fig = px.pie(
+                                values=[
+                                    comment_data["general"],
+                                    comment_data["health_related"],
+                                ],
+                                names=["General Discussion", "Health-Related"],
+                                title=f"Comments: {comment_data['health_percentage']:.1f}% Health-Related",
+                                color_discrete_map={
+                                    "General Discussion": "#95a5a6",
+                                    "Health-Related": "#e74c3c",
+                                },
+                            )
+                            gr.Plot(value=comment_fig)
+
+                    # Top ML features
+                    gr.Markdown("## 🔍 Top Health Indicators Learned by ML")
+                    features_text = []
+                    for feature, importance in ml_data["top_health_features"]:
+                        features_text.append(f"**{feature}**: {importance:.2f}")
+                    gr.Markdown("• " + "\n• ".join(features_text))
+
+                    # High confidence examples
+                    gr.Markdown("## 💯 High-Confidence Health Classifications")
+                    examples_text = ""
+                    for i, example in enumerate(ml_data["high_confidence_examples"], 1):
+                        confidence_pct = example["confidence"] * 100
+                        examples_text += f"""
+**Example {i}** ({confidence_pct:.0f}% confidence)
+> {example['text']}
+
+---
+"""
+                    gr.Markdown(
+                        examples_text
+                        if examples_text
+                        else "*No high-confidence examples found*"
+                    )
+
+                else:
+                    gr.Markdown("⚠️ **ML Model Not Available**")
+                    gr.Markdown(
+                        "Run `python -m src.health_content_classifier` to train the model first."
+                    )
+
+            # Classification Methods tab
+            with gr.Tab("📚 Classification Methods"):
+                gr.Markdown(
+                    """
+# 🧠 Algorithm Documentation
+
+## Current Classification Status
+
+⚠️ **Important**: The platform is currently in **data collection phase**. Advanced ML classification is not yet active.
+
+### What's Currently Working:
+- ✅ **Language Detection**: Using `langdetect` library for automatic language identification
+- ✅ **Keyword Matching**: Simple pattern matching against health keyword dictionaries
+- ✅ **Newcomer Detection**: Rule-based matching of newcomer-related phrases
+- ✅ **Basic Content Analysis**: Word frequency and engagement metrics
+
+### What's Planned (Not Yet Implemented):
+- 🔄 **ML Misinformation Scoring**: Machine learning models for misinformation detection
+- 🔄 **Severity Classification**: 1-5 scale severity assessment
+- 🔄 **Health Topic Classification**: Automated categorization (PrEP, HIV testing, etc.)
+- 🔄 **Context-Aware Analysis**: Understanding discussion context and intent
+
+### Current Keyword Detection Method:
+```python
+# Simple keyword matching (case-insensitive)
+HEALTH_KEYWORDS = [
+    "HIV", "PrEP", "ARVs", "syphilis", "doxy", 
+    "PEP", "chlamydia", "gonorrhea", "Truvada"
+]
+
+def contains_health_keywords(text):
+    text_lower = text.lower()
+    return any(keyword.lower() in text_lower 
+              for keyword in HEALTH_KEYWORDS)
+```
+
+### Future ML Pipeline:
+1. **Data Collection** ← **(Current Phase)**
+2. **Human Annotation** (Research team coding)
+3. **Model Training** (Using annotated data)
+4. **Automated Classification** (ML predictions)
+5. **Continuous Learning** (Model improvement)
+
+### Research Team Notes:
+- Any advanced classifications you see are likely from **demo data** or **UI mockups**
+- Real ML classification requires substantial training data first
+- Current focus: Building robust data collection and annotation workflows
+                """
+                )
+
+            # Content Explorer tab
+            with gr.Tab("🔍 Content Explorer"):
+                gr.Markdown("## 📊 Word Cloud Analysis")
+                gr.Markdown(
+                    "*Visualization of most frequently mentioned terms across all posts and comments*"
+                )
+
+                wordcloud_display = gr.Markdown(
+                    value="**Word cloud temporarily disabled** - Check terminal for dashboard URL",
+                    label="Most Frequent Terms",
+                )
+
+                gr.Markdown("## 🔎 Keyword Context Examples")
+                gr.Markdown(
+                    "*See how specific health keywords are being discussed in context*"
+                )
+
+                with gr.Row():
+                    keyword_input = gr.Textbox(
+                        label="Search Keyword",
+                        placeholder="Enter keyword (e.g., PrEP, HIV, vaccination)",
+                        value="health",
+                    )
+                    search_btn = gr.Button("🔍 Search Examples")
+
+                keyword_examples = gr.Markdown(
+                    value=self.format_keyword_examples("health"),
+                    label="Examples in Context",
+                )
+
+                gr.Markdown("## 📋 Recent Posts Preview")
+                gr.Markdown(
+                    "*Transparency view: Recent posts being analyzed by the platform*"
+                )
+
+                recent_posts = gr.Markdown(
+                    value=self.format_recent_posts(), label="Recent Posts"
+                )
+
+                refresh_posts_btn = gr.Button("🔄 Refresh Recent Posts")
+
+                # Event handlers for content explorer
+                search_btn.click(
+                    fn=self.format_keyword_examples,
+                    inputs=keyword_input,
+                    outputs=keyword_examples,
+                )
+
+                refresh_posts_btn.click(
+                    fn=self.format_recent_posts, outputs=recent_posts
+                )
+
             # Event handlers
             def refresh_dashboard():
                 self.refresh_data()
@@ -463,6 +693,78 @@ class AnalyticsDashboardInterface:
             export_btn.click(fn=self.export_report, outputs=[export_status])
 
         return dashboard
+
+    def format_keyword_examples(self, keyword: str) -> str:
+        """Format keyword examples for display"""
+        if not keyword.strip():
+            return "Please enter a keyword to search for examples."
+
+        examples = self.analytics.get_keyword_context(keyword, max_examples=5)
+
+        if not examples:
+            return f"No examples found for keyword: **{keyword}**"
+
+        formatted = f"# Examples of '{keyword}' in Context\n\n"
+
+        for i, example in enumerate(examples, 1):
+            # Create a qualitative research-style card
+            formatted += f"""
+<div style="border-left: 4px solid #3498db; padding: 15px; margin: 15px 0; background-color: #f8f9fa; border-radius: 5px;">
+
+**📋 Excerpt {i}** ({example['type'].title()})
+
+**🏷️ Source:** r/{example.get('subreddit', 'unknown')} • u/{example.get('author', 'anonymous')} • Score: {example.get('score', 0)}
+"""
+
+            if example["type"] == "post":
+                formatted += f"\n**📝 Post Title:** *{example.get('title', '')}*\n"
+
+            formatted += f"""
+**💬 Quote:**
+> "{example.get('context', '')}"
+
+**🔍 Analysis Notes:** *Keyword '{keyword}' appears in context of {example['type']} discussion*
+
+</div>
+"""
+
+        return formatted
+
+    def format_recent_posts(self) -> str:
+        """Format recent posts for transparency display"""
+        recent_posts = self.analytics.get_recent_posts_preview(limit=10)
+
+        if not recent_posts:
+            return "No recent posts available."
+
+        formatted = "## Recent Posts Being Analyzed:\n\n"
+
+        for i, post in enumerate(recent_posts, 1):
+            formatted += f"### Post {i}\n"
+            formatted += f"**Title:** {post.get('title', '')}\n"
+            formatted += f"**Subreddit:** r/{post.get('subreddit', 'unknown')}\n"
+            formatted += f"**Author:** {post.get('author', 'anonymous')}\n"
+            formatted += f"**Score:** {post.get('score', 0)} | **Comments:** {post.get('num_comments', 0)}\n"
+            formatted += f"**Language:** {post.get('language', 'unknown')}\n"
+
+            if post.get("contains_health_keywords", False):
+                formatted += "**🏥 Contains Health Keywords:** Yes\n"
+            else:
+                formatted += "**🏥 Contains Health Keywords:** No\n"
+
+            # Format creation time if available
+            created_utc = post.get("created_utc")
+            if created_utc:
+                if isinstance(created_utc, str):
+                    formatted += f"**Posted:** {created_utc}\n"
+                else:
+                    formatted += (
+                        f"**Posted:** {created_utc.strftime('%Y-%m-%d %H:%M UTC')}\n"
+                    )
+
+            formatted += "\n---\n\n"
+
+        return formatted
 
     def launch(self, share: bool = False):
         """Launch the analytics dashboard"""

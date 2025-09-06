@@ -1,14 +1,18 @@
-"""schema_enhancements_for_grant_deliverables
+"""Restore missing translation and analysis fields
 
-Revision ID: fac8e0a0d167
-Revises: 1b7b496c6b13
-Create Date: 2025-08-30 23:53:28.421313
+Revision ID: 6945748703b9
+Revises: f18207ecb3c9
+Create Date: 2025-09-05 20:50:21.136093
 
 """
 
+from alembic import op
+import sqlalchemy as sa
+
+
 # revision identifiers, used by Alembic.
-revision = "fac8e0a0d167"
-down_revision = "1b7b496c6b13"
+revision = "6945748703b9"
+down_revision = "f18207ecb3c9"
 branch_labels = None
 depends_on = None
 

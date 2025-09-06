@@ -2,20 +2,21 @@
 Database models for storing Reddit posts, comments, and annotations
 """
 
+from datetime import datetime
+
 from sqlalchemy import (
-    create_engine,
+    Boolean,
     Column,
+    DateTime,
+    Float,
+    ForeignKey,
     Integer,
     String,
     Text,
-    DateTime,
-    Boolean,
-    Float,
-    ForeignKey,
+    create_engine,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
+from sqlalchemy.orm import relationship, sessionmaker
 
 Base = declarative_base()
 
@@ -49,6 +50,13 @@ class RedditPost(Base):
     contains_health_keywords = Column(Boolean)  # Health keyword detection
     keyword_count = Column(Integer)  # Number of health keywords found
 
+    # LGBTQ+ classification columns
+    contains_lgbtq_keywords = Column(Boolean, default=False)  # LGBTQ+ keyword detection
+    lgbtq_keyword_count = Column(Integer, default=0)  # Number of LGBTQ+ keywords found
+    lgbtq_context = Column(String(50))  # Primary LGBTQ+ context (gay, bi, msm, etc.)
+    lgbtq_contexts_json = Column(Text)  # JSON of all detected contexts
+    lgbtq_relevance_score = Column(Float)  # ML classifier confidence score
+
     # Language community analysis enhancements
     non_official_language_indicators = Column(Text)  # JSON of detected patterns
     code_switching_score = Column(Float)  # Mix of heritage language + eng/fra
@@ -75,6 +83,7 @@ class RedditComment(Base):
     parent_id = Column(String(50))  # For tracking reply chains
     language = Column(String(10))
     english_translation = Column(Text)  # Translation of comment body if non-English
+    translation_confidence = Column(Float)  # Translation confidence score
     is_newcomer_related = Column(Boolean, default=False)
 
     # Relationships
